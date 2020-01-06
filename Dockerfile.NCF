@@ -1,0 +1,45 @@
+FROM ubuntu:16.04
+
+WORKDIR /work/deps
+
+# install some developer libraries
+RUN apt-get update
+RUN apt-get install gcc g++ cmake wget git apt-transport-https ca-certificates numactl -y
+RUN wget -nv https://bootstrap.pypa.io/get-pip.py
+
+# install miniconda
+RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ./miniconda.sh && \
+    /bin/bash ./miniconda.sh -b -p /opt/conda
+
+# install mkl 2019 update 4
+RUN wget https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS-2019.PUB
+RUN apt-key add GPG-PUB-KEY-INTEL-SW-PRODUCTS-2019.PUB
+RUN sh -c 'echo deb https://apt.repos.intel.com/mkl all main > /etc/apt/sources.list.d/intel-mkl.list'
+RUN apt-get update
+RUN apt-get install intel-mkl-2019.4-070 -y
+
+# build mxnet with mkl
+RUN git clone https://github.com/apache/incubator-mxnet mxnet
+WORKDIR /work/deps/mxnet
+RUN git checkout dfa3d07a74e59297394c624a3373a335f94a64eb
+RUN git submodule update --init --recursive
+RUN make -j8 USE_BLAS=mkl USE_INTEL_PATH=/opt/intel USE_OPENCV=0
+ENV LD_LIBRARY_PATH=/opt/intel/compilers_and_libraries_2019.4.243/linux/compiler/lib/intel64_lin/:$LD_LIBRARY_PATH
+ENV PATH=/opt/conda/bin/:$PATH
+RUN pip install -e ./python/
+
+# download dataset and pre-trained model
+RUN pip install pandas scipy tqdm gdown
+WORKDIR /work/deps/mxnet/example/neural_collaborative_filtering/
+RUN mkdir -p ./data/ml-20m/ && cd ./data/ml-20m/ && \
+    gdown https://drive.google.com/uc?id=1t_mwZHWiiRpO2rxMyeSStj46WIq3vgjj
+RUN mkdir -p ./model/ml-20m/ && cd ./model/ml-20m/ && \
+    gdown https://drive.google.com/uc?id=1NWqDzh37sK-sPqJVkdYzex0SxXIHZffn && \
+    gdown https://drive.google.com/uc?id=1nNlt1275N7QU6bGKdBdloyN_NHC4ddZy && \
+    gdown https://drive.google.com/uc?id=15qO9TvpgqDYCK4mHaHr3SeRr4GfjiarM && \
+    gdown https://drive.google.com/uc?id=1P3FF7uk-zCJlu278cjBjEuxeA7tujbAO
+
+RUN chmod +x benchmark.sh
+RUN ln -s /work/deps/mxnet/example/neural_collaborative_filtering/ /work/ncf
+WORKDIR /work/ncf
+
