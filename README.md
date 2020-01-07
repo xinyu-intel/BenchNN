@@ -5,7 +5,7 @@
 ### Build NCF Environment
 
 ```
-docker build -f Dockerfile.NCF -t ncf:build
+docker build -f Dockerfile.NCF -t ncf:build .
 ```
 
 ### Benchmark NCF
